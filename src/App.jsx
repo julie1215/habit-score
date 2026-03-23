@@ -185,7 +185,7 @@ function saveRoomCode(roomCode) {
   try {
     if (roomCode) localStorage.setItem(ROOM_STORAGE_KEY, roomCode);
     else localStorage.removeItem(ROOM_STORAGE_KEY);
-  } catch {}
+  } catch { }
 }
 
 function makeRoomCode() {
@@ -296,13 +296,18 @@ function inputStyle() {
 
 function buttonStyle(primary = false) {
   return {
-    padding: "10px 14px",
-    borderRadius: 12,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "4px 10px",
+    borderRadius: 999,
     border: primary ? "1px solid #111827" : "1px solid #d1d5db",
     background: primary ? "#111827" : "#fff",
     color: primary ? "#fff" : "#111827",
     cursor: "pointer",
     fontWeight: 600,
+    fontSize: 12,
+    lineHeight: 1,
   };
 }
 
@@ -313,11 +318,13 @@ function badgeStyle(kind = "default") {
     success: { background: "#ecfdf5", color: "#065f46" },
   };
   return {
-    display: "inline-block",
-    padding: "4px 8px",
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "4px 10px",
     borderRadius: 999,
     fontSize: 12,
     fontWeight: 600,
+    lineHeight: 1,
     ...styles[kind],
   };
 }
@@ -338,19 +345,40 @@ function DaySelector({ selectedDate, onChange }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))", gap: 8 }}>
       {days.map((date) => {
-        const active = date === selectedDate;
+        const isActive = date === selectedDate;
         return (
           <button
             key={date}
             onClick={() => onChange(date)}
             style={{
-              ...buttonStyle(active),
-              minHeight: 56,
-              textAlign: "center",
+              ...buttonStyle(isActive),
+              minHeight: 64,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 2,
             }}
           >
-            <div style={{ fontSize: 12, opacity: 0.8 }}>{DAY_LABELS[getDayKey(date)]}</div>
-            <div style={{ marginTop: 4 }}>{date.slice(5)}</div>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: isActive ? "#ffffff" : "#6b7280",
+              }}
+            >
+              {DAY_LABELS[getDayKey(date)]}
+            </div>
+
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 700,
+                color: isActive ? "#ffffff" : "#111111",
+              }}
+            >
+              {date.slice(5)}
+            </div>
           </button>
         );
       })}
@@ -406,20 +434,20 @@ function RuleEditor({ initialRule, onSubmit, onCancel, submitLabel = "저장" })
     const rule =
       type === "threshold"
         ? {
-            ...common,
-            thresholds: [
-              { id: initialRule?.thresholds?.[0]?.id || crypto.randomUUID(), time: time1, score: Number(score1), label: `${time1} 전` },
-              { id: initialRule?.thresholds?.[1]?.id || crypto.randomUUID(), time: time2, score: Number(score2), label: `${time2} 전` },
-            ],
-            fallbackScore: Number(fallbackScore),
-            fallbackLabel: `${time2} 이후`,
-          }
+          ...common,
+          thresholds: [
+            { id: initialRule?.thresholds?.[0]?.id || crypto.randomUUID(), time: time1, score: Number(score1), label: `${time1} 전` },
+            { id: initialRule?.thresholds?.[1]?.id || crypto.randomUUID(), time: time2, score: Number(score2), label: `${time2} 전` },
+          ],
+          fallbackScore: Number(fallbackScore),
+          fallbackLabel: `${time2} 이후`,
+        }
         : {
-            ...common,
-            dueTime,
-            onTimeScore: Number(onTimeScore),
-            latePenaltyPerMinute: Number(latePenaltyPerMinute),
-          };
+          ...common,
+          dueTime,
+          onTimeScore: Number(onTimeScore),
+          latePenaltyPerMinute: Number(latePenaltyPerMinute),
+        };
 
     onSubmit(rule);
   };
@@ -625,14 +653,43 @@ export default function App() {
   const weeklyPass = weekly.normalized >= state.weeklyGoal;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f8fafc", padding: 20, color: "#111827", fontFamily: "Arial, sans-serif" }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#f8fafc",
+        padding: 20,
+        color: "#111827",
+        fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+        WebkitFontSmoothing: "antialiased",
+        MozOsxFontSmoothing: "grayscale",
+        textRendering: "optimizeLegibility",
+      }}
+    >
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
           <div style={{ ...sectionStyle(), gridColumn: "span 2" }}>
             <div style={{ fontSize: 13, color: "#6b7280" }}>가족 공유 포인트 웹앱</div>
-            <h1 style={{ margin: "8px 0 8px" }}>{state.childName}의 데일리 / 위클리 점수판</h1>
+            <h1
+              style={{
+                margin: "8px 0",
+                fontSize: 24,
+                fontWeight: 700,
+                color: "#111111",
+                lineHeight: 1.3,
+                letterSpacing: "-0.3px",
+              }}
+            >{state.childName}의 데일리 / 위클리 점수판</h1>
             <div style={{ color: "#4b5563", fontSize: 14 }}>부모와 아이가 같은 가족 코드로 접속하면 점수와 항목이 함께 저장돼요.</div>
-            <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                marginTop: 36,
+                flexWrap: "wrap",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
               <span style={badgeStyle("default")}>{role === "parent" ? "부모 모드" : "아이 모드"}</span>
               <button style={buttonStyle(false)} onClick={resetAll}>초기화</button>
             </div>
@@ -687,16 +744,41 @@ export default function App() {
           <DaySelector selectedDate={selectedDate} onChange={setSelectedDate} />
         </div>
 
-        <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
-          <button style={buttonStyle(tab === "daily")} onClick={() => setTab("daily")}>데일리</button>
-          <button style={buttonStyle(tab === "weekly")} onClick={() => setTab("weekly")}>위클리</button>
-        </div>
-
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(280px, 0.9fr)", gap: 16, marginTop: 16 }}>
           <div>
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                marginTop: 8,
+                marginBottom: 16,
+                flexWrap: "wrap",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <button style={buttonStyle(tab === "daily")} onClick={() => setTab("daily")}>
+                데일리
+              </button>
+              <button style={buttonStyle(tab === "weekly")} onClick={() => setTab("weekly")}>
+                위클리
+              </button>
+            </div>
+
             {tab === "daily" ? (
               <div style={sectionStyle()}>
-                <h2 style={{ marginTop: 0 }}>{formatDateKorean(selectedDate)}</h2>
+                <h2
+                  style={{
+                    margin: "0 0 10px",
+                    fontSize: 18,
+                    fontWeight: 700,
+                    color: "#111111",
+                    lineHeight: 1.3,
+                    letterSpacing: "-0.2px",
+                  }}
+                >
+                  {formatDateKorean(selectedDate)}
+                </h2>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
                   <SummaryBox label="획득 점수" value={`${daily.total}점`} sub={`${daily.maxTotal}점 만점`} />
                   <SummaryBox label="환산 점수" value={`${daily.normalized}점`} sub="100점 기준" />
@@ -739,7 +821,18 @@ export default function App() {
               </div>
             ) : (
               <div style={sectionStyle()}>
-                <h2 style={{ marginTop: 0 }}>주간 요약</h2>
+                <h2
+                  style={{
+                    margin: "0 0 10px",
+                    fontSize: 18,
+                    fontWeight: 700,
+                    color: "#111111",
+                    lineHeight: 1.3,
+                    letterSpacing: "-0.2px",
+                  }}
+                >
+                  주간 요약
+                </h2>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
                   <SummaryBox label="주간 총점" value={`${weekly.total}점`} sub={`${weekly.maxTotal}점 만점`} />
                   <SummaryBox label="환산 점수" value={`${weekly.normalized}점`} sub="100점 기준" />
