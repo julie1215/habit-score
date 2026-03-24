@@ -339,11 +339,18 @@ function SummaryBox({ label, value, sub }) {
   );
 }
 
-function DaySelector({ selectedDate, onChange }) {
+function DaySelector({ selectedDate, onChange, isMobile }) {
   const weekStart = startOfWeek(selectedDate);
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(90px, 1fr))", gap: 8 }}>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(7, minmax(90px, 1fr))",
+        gap: 8,
+      }}
+    >
       {days.map((date) => {
         const isActive = date === selectedDate;
         return (
@@ -352,12 +359,13 @@ function DaySelector({ selectedDate, onChange }) {
             onClick={() => onChange(date)}
             style={{
               ...buttonStyle(isActive),
-              minHeight: 64,
+              minHeight: isMobile ? 72 : 64,
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
               gap: 2,
+              width: "100%",
             }}
           >
             <div
@@ -520,10 +528,20 @@ export default function App() {
     isFirebaseConfigured() ? "Firebase 연결 준비됨. 가족 코드로 공유방을 만들거나 연결하세요." : "Firebase 설정값을 넣으면 가족 공유가 활성화돼요."
   );
   const [tab, setTab] = useState("daily");
+  const [viewportWidth, setViewportWidth] = useState(
+    typeof window !== "undefined" ? window.innerWidth : 1200
+  );
+  const isMobile = viewportWidth < 768;
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
+
+  useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => {
     saveRoomCode(currentRoomCode);
@@ -657,7 +675,7 @@ export default function App() {
       style={{
         minHeight: "100vh",
         background: "#f8fafc",
-        padding: 20,
+        padding: isMobile ? 12 : 20,
         color: "#111827",
         fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
         WebkitFontSmoothing: "antialiased",
@@ -665,9 +683,15 @@ export default function App() {
         textRendering: "optimizeLegibility",
       }}
     >
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
-          <div style={{ ...sectionStyle(), gridColumn: "span 2" }}>
+      <div style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(280px, 1fr))",
+            gap: 16,
+          }}
+        >
+          <div style={{ ...sectionStyle(), gridColumn: isMobile ? "span 1" : "span 2" }}>
             <div style={{ fontSize: 13, color: "#6b7280" }}>가족 공유 포인트 웹앱</div>
             <h1
               style={{
@@ -710,7 +734,13 @@ export default function App() {
 
         <div style={{ ...sectionStyle(), marginTop: 16 }}>
           <div style={{ fontWeight: 700, marginBottom: 10 }}>가족 공유</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: 12,
+            }}
+          >
             <div>
               <div style={{ fontSize: 14, marginBottom: 6 }}>가족 코드</div>
               <input style={inputStyle()} value={roomCodeInput} onChange={(e) => setRoomCodeInput(e.target.value.toUpperCase())} placeholder="예: AB12CD" />
@@ -741,10 +771,18 @@ export default function App() {
         </div>
 
         <div style={{ marginTop: 16 }}>
-          <DaySelector selectedDate={selectedDate} onChange={setSelectedDate} />
+          <DaySelector selectedDate={selectedDate} onChange={setSelectedDate} isMobile={isMobile} />
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(280px, 0.9fr)", gap: 16, marginTop: 16 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.4fr) minmax(280px, 0.9fr)",
+            gap: 16,
+            marginTop: 16,
+            alignItems: "start",
+          }}
+        >
           <div>
             <div
               style={{
@@ -779,7 +817,13 @@ export default function App() {
                 >
                   {formatDateKorean(selectedDate)}
                 </h2>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(180px, 1fr))",
+                    gap: 12,
+                  }}
+                >
                   <SummaryBox label="획득 점수" value={`${daily.total}점`} sub={`${daily.maxTotal}점 만점`} />
                   <SummaryBox label="환산 점수" value={`${daily.normalized}점`} sub="100점 기준" />
                   <SummaryBox label="판정" value={dailyPass ? "통과" : "미달"} sub={`기준 ${state.weeklyGoal}점`} />
@@ -794,7 +838,15 @@ export default function App() {
                     const rec = state.records[selectedDate]?.[item.rule.id] || {};
                     return (
                       <div key={item.rule.id} style={{ border: "1px solid #e5e7eb", borderRadius: 14, padding: 14 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: isMobile ? "column" : "row",
+                            justifyContent: "space-between",
+                            gap: 12,
+                            flexWrap: "wrap",
+                          }}
+                        >
                           <div>
                             <div style={{ fontWeight: 700 }}>{item.rule.title}</div>
                             <div style={{ marginTop: 6, display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -806,7 +858,7 @@ export default function App() {
                             </div>
                             <div style={{ marginTop: 6, fontSize: 14 }}>결과: <strong>{item.detail}</strong> · {item.score}점</div>
                           </div>
-                          <div style={{ minWidth: 220 }}>
+                          <div style={{ minWidth: isMobile ? "100%" : 220 }}>
                             <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                               <input type="checkbox" checked={!!rec.checked} onChange={(e) => setRecord(selectedDate, item.rule.id, { checked: e.target.checked })} />
                               <span>달성 체크</span>
@@ -833,7 +885,13 @@ export default function App() {
                 >
                   주간 요약
                 </h2>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(180px, 1fr))",
+                    gap: 12,
+                  }}
+                >
                   <SummaryBox label="주간 총점" value={`${weekly.total}점`} sub={`${weekly.maxTotal}점 만점`} />
                   <SummaryBox label="환산 점수" value={`${weekly.normalized}점`} sub="100점 기준" />
                   <SummaryBox label="판정" value={weeklyPass ? "통과" : "미달"} sub={`기준 ${state.weeklyGoal}점`} />
@@ -843,7 +901,18 @@ export default function App() {
                 </div>
                 <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
                   {weekly.daily.map((d) => (
-                    <div key={d.date} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, alignItems: "center", border: "1px solid #e5e7eb", borderRadius: 12, padding: 12 }}>
+                    <div
+                      key={d.date}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: isMobile ? "1fr" : "1fr auto auto",
+                        gap: 10,
+                        alignItems: "center",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: 12,
+                        padding: 12,
+                      }}
+                    >
                       <div>
                         <div style={{ fontWeight: 700 }}>{formatDateKorean(d.date)}</div>
                         <div style={{ color: "#6b7280", fontSize: 13 }}>{d.items.length}개 항목</div>
@@ -883,7 +952,7 @@ export default function App() {
                         ? `${rule.thresholds.map((t) => `${t.time} 전 ${t.score}점`).join(" / ")} / 이후 ${rule.fallbackScore}점`
                         : `${rule.dueTime}까지 ${rule.onTimeScore}점 / 지각 분당 ${rule.latePenaltyPerMinute}점`}
                     </div>
-                    <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
                       <button style={buttonStyle(false)} onClick={() => setEditingRuleId(rule.id)}>수정</button>
                       <button style={buttonStyle(false)} onClick={() => deleteRule(rule.id)}>삭제</button>
                     </div>
