@@ -476,9 +476,26 @@ function RuleEditor({ initialRule, onSubmit, onCancel, submitLabel = "저장" })
 
       <div style={{ marginTop: 14 }}>
         <div style={{ marginBottom: 6, fontSize: 14 }}>적용 요일</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+            gap: 8,
+            width: "100%",
+          }}
+        >
           {DAY_KEYS.map((day) => (
-            <button key={day} type="button" onClick={() => toggleDay(day)} style={buttonStyle(days.includes(day))}>
+            <button
+              key={day}
+              type="button"
+              onClick={() => toggleDay(day)}
+              style={{
+                ...buttonStyle(days.includes(day)),
+                width: "100%",
+                justifyContent: "center",
+                padding: "8px 0",
+              }}
+            >
               {DAY_LABELS[day]}
             </button>
           ))}
