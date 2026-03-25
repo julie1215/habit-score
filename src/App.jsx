@@ -541,6 +541,13 @@ export default function App() {
   const [roomCodeInput, setRoomCodeInput] = useState(loadSavedRoomCode);
   const [currentRoomCode, setCurrentRoomCode] = useState(loadSavedRoomCode);
   const [role, setRole] = useState("parent");
+  const [viewMode] = useState(() => {
+    if (typeof window === "undefined") return "parent";
+    return new URLSearchParams(window.location.search).get("mode") === "child"
+      ? "child"
+      : "parent";
+  });
+  const isChildView = viewMode === "child";
   const [syncStatus, setSyncStatus] = useState(
     isFirebaseConfigured() ? "Firebase 연결 준비됨. 가족 코드로 공유방을 만들거나 연결하세요." : "Firebase 설정값을 넣으면 가족 공유가 활성화돼요."
   );
@@ -719,73 +726,112 @@ export default function App() {
                 lineHeight: 1.3,
                 letterSpacing: "-0.3px",
               }}
-            >{state.childName}의 데일리 / 위클리 점수판</h1>
-            <div style={{ color: "#4b5563", fontSize: 14 }}>부모와 아이가 같은 가족 코드로 접속하면 점수와 항목이 함께 저장돼요.</div>
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                marginTop: 36,
-                flexWrap: "wrap",
-                justifyContent: "center",
-                alignItems: "center",
-              }}
             >
-              <span style={badgeStyle("default")}>{role === "parent" ? "부모 모드" : "아이 모드"}</span>
-              <button style={buttonStyle(false)} onClick={resetAll}>초기화</button>
-            </div>
+              {state.childName}의 데일리 / 위클리 점수판
+            </h1>
+
+            {!isChildView ? (
+              <>
+                <div style={{ color: "#4b5563", fontSize: 14 }}>
+                  부모와 아이가 같은 가족 코드로 접속하면 점수와 항목이 함께 저장돼요.
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    marginTop: 36,
+                    flexWrap: "wrap",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <span style={badgeStyle("default")}>{role === "parent" ? "부모 모드" : "아이 모드"}</span>
+                  <button style={buttonStyle(false)} onClick={resetAll}>초기화</button>
+                </div>
+              </>
+            ) : null}
           </div>
 
           <div style={sectionStyle()}>
             <div style={{ fontWeight: 700, marginBottom: 10 }}>기본 설정</div>
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 14, marginBottom: 6 }}>아이 이름</div>
-              <input style={inputStyle()} value={state.childName} onChange={(e) => persistState({ ...state, childName: e.target.value })} />
-            </div>
-            <div>
-              <div style={{ fontSize: 14, marginBottom: 6 }}>목표 점수 (100점 기준)</div>
-              <input style={inputStyle()} type="number" value={state.weeklyGoal} onChange={(e) => persistState({ ...state, weeklyGoal: Number(e.target.value || 0) })} />
-            </div>
+
+            {isChildView ? (
+              <div>
+                <div style={{ fontSize: 14, marginBottom: 6 }}>목표 점수 (100점 기준)</div>
+                <div
+                  style={{
+                    ...inputStyle(),
+                    background: "#f8fafc",
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                >
+                  {state.weeklyGoal}점
+                </div>
+              </div>
+            ) : (
+              <>
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 14, marginBottom: 6 }}>아이 이름</div>
+                  <input
+                    style={inputStyle()}
+                    value={state.childName}
+                    onChange={(e) => persistState({ ...state, childName: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 14, marginBottom: 6 }}>목표 점수 (100점 기준)</div>
+                  <input
+                    style={inputStyle()}
+                    type="number"
+                    value={state.weeklyGoal}
+                    onChange={(e) => persistState({ ...state, weeklyGoal: Number(e.target.value || 0) })}
+                  />
+                </div>
+              </>
+            )}
           </div>
         </div>
 
-        <div style={{ ...sectionStyle(), marginTop: 16 }}>
-          <div style={{ fontWeight: 700, marginBottom: 10 }}>가족 공유</div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: 12,
-            }}
-          >
-            <div>
-              <div style={{ fontSize: 14, marginBottom: 6 }}>가족 코드</div>
-              <input style={inputStyle()} value={roomCodeInput} onChange={(e) => setRoomCodeInput(e.target.value.toUpperCase())} placeholder="예: AB12CD" />
+        {!isChildView ? (
+          <div style={{ ...sectionStyle(), marginTop: 16 }}>
+            <div style={{ fontWeight: 700, marginBottom: 10 }}>가족 공유</div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: 12,
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 14, marginBottom: 6 }}>가족 코드</div>
+                <input style={inputStyle()} value={roomCodeInput} onChange={(e) => setRoomCodeInput(e.target.value.toUpperCase())} placeholder="예: AB12CD" />
+              </div>
+              <div>
+                <div style={{ fontSize: 14, marginBottom: 6 }}>내 역할</div>
+                <select style={inputStyle()} value={role} onChange={(e) => setRole(e.target.value)}>
+                  <option value="parent">부모</option>
+                  <option value="child">아이</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <div style={{ fontSize: 14, marginBottom: 6 }}>내 역할</div>
-              <select style={inputStyle()} value={role} onChange={(e) => setRole(e.target.value)}>
-                <option value="parent">부모</option>
-                <option value="child">아이</option>
-              </select>
+            <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+              <button style={buttonStyle(true)} onClick={createRoom}>공유방 만들기</button>
+              <button style={buttonStyle(false)} onClick={joinRoom}>공유방 연결</button>
+              {currentRoomCode && <button style={buttonStyle(false)} onClick={copyRoom}>코드 복사</button>}
+              {currentRoomCode && <button style={buttonStyle(false)} onClick={leaveRoom}>연결 해제</button>}
             </div>
-          </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-            <button style={buttonStyle(true)} onClick={createRoom}>공유방 만들기</button>
-            <button style={buttonStyle(false)} onClick={joinRoom}>공유방 연결</button>
-            {currentRoomCode && <button style={buttonStyle(false)} onClick={copyRoom}>코드 복사</button>}
-            {currentRoomCode && <button style={buttonStyle(false)} onClick={leaveRoom}>연결 해제</button>}
-          </div>
-          <div style={{ marginTop: 12, background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 12, padding: 12, fontSize: 14, color: "#4b5563" }}>
-            {syncStatus}
-            {currentRoomCode ? <div style={{ marginTop: 6, fontWeight: 700 }}>현재 연결 코드: {currentRoomCode}</div> : null}
-          </div>
-          {!isFirebaseConfigured() ? (
-            <div style={{ marginTop: 12, background: "#fff7ed", border: "1px solid #fdba74", borderRadius: 12, padding: 12, fontSize: 14 }}>
-              코드 상단의 FIREBASE_CONFIG 값을 실제 값으로 바꿔야 가족 공유가 동작해요.
+            <div style={{ marginTop: 12, background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 12, padding: 12, fontSize: 14, color: "#4b5563" }}>
+              {syncStatus}
+              {currentRoomCode ? <div style={{ marginTop: 6, fontWeight: 700 }}>현재 연결 코드: {currentRoomCode}</div> : null}
             </div>
-          ) : null}
-        </div>
+            {!isFirebaseConfigured() ? (
+              <div style={{ marginTop: 12, background: "#fff7ed", border: "1px solid #fdba74", borderRadius: 12, padding: 12, fontSize: 14 }}>
+                코드 상단의 FIREBASE_CONFIG 값을 실제 값으로 바꿔야 가족 공유가 동작해요.
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <div style={{ marginTop: 16 }}>
           <DaySelector selectedDate={selectedDate} onChange={setSelectedDate} isMobile={isMobile} />
@@ -850,37 +896,125 @@ export default function App() {
                 </div>
 
                 <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
-                  {daily.items.length === 0 ? <div style={{ color: "#6b7280" }}>이 날짜에는 등록된 항목이 없어요.</div> : null}
+                  {daily.items.length === 0 ? (
+                    <div style={{ color: "#6b7280" }}>이 날짜에는 등록된 항목이 없어요.</div>
+                  ) : null}
+
                   {daily.items.map((item) => {
                     const rec = state.records[selectedDate]?.[item.rule.id] || {};
+
                     return (
-                      <div key={item.rule.id} style={{ border: "1px solid #e5e7eb", borderRadius: 14, padding: 14 }}>
+                      <div
+                        key={item.rule.id}
+                        style={{
+                          border: "1px solid #e5e7eb",
+                          borderRadius: 14,
+                          padding: 14,
+                        }}
+                      >
                         <div
                           style={{
                             display: "flex",
-                            flexDirection: isMobile ? "column" : "row",
-                            justifyContent: "space-between",
+                            flexDirection: "column",
+                            alignItems: "stretch",
                             gap: 12,
-                            flexWrap: "wrap",
                           }}
                         >
-                          <div>
-                            <div style={{ fontWeight: 700 }}>{item.rule.title}</div>
-                            <div style={{ marginTop: 6, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "flex-start",
+                              gap: 6,
+                              textAlign: "left",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontWeight: 700,
+                                fontSize: 18,
+                                lineHeight: 1.3,
+                                width: "100%",
+                                textAlign: "left",
+                              }}
+                            >
+                              {item.rule.title}
+                            </div>
+
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: 6,
+                                flexWrap: "wrap",
+                                justifyContent: "flex-start",
+                              }}
+                            >
                               <span style={badgeStyle("gray")}>{item.rule.category}</span>
                               <span style={badgeStyle("default")}>{item.rule.scheduleLabel}</span>
                             </div>
-                            <div style={{ marginTop: 8, fontSize: 14, color: "#4b5563" }}>
-                              {item.rule.type === "threshold" ? "시간 구간 점수형" : `정시 ${item.rule.dueTime} / 지각 분당 감점`}
+
+                            <div
+                              style={{
+                                fontSize: 14,
+                                color: "#4b5563",
+                                lineHeight: 1.5,
+                                textAlign: "left",
+                              }}
+                            >
+                              {item.rule.type === "threshold"
+                                ? "시간 구간 점수형"
+                                : `정시 ${item.rule.dueTime} / 지각 분당 감점`}
                             </div>
-                            <div style={{ marginTop: 6, fontSize: 14 }}>결과: <strong>{item.detail}</strong> · {item.score}점</div>
+
+                            <div
+                              style={{
+                                fontSize: 14,
+                                lineHeight: 1.5,
+                                textAlign: "left",
+                              }}
+                            >
+                              결과: <strong>{item.detail}</strong> · {item.score}점
+                            </div>
                           </div>
-                          <div style={{ minWidth: isMobile ? "100%" : 220 }}>
-                            <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                              <input type="checkbox" checked={!!rec.checked} onChange={(e) => setRecord(selectedDate, item.rule.id, { checked: e.target.checked })} />
+
+                          <div
+                            style={{
+                              width: "100%",
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 10,
+                            }}
+                          >
+                            <label
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                textAlign: "left",
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={!!rec.checked}
+                                onChange={(e) =>
+                                  setRecord(selectedDate, item.rule.id, {
+                                    checked: e.target.checked,
+                                  })
+                                }
+                              />
                               <span>달성 체크</span>
                             </label>
-                            <input style={inputStyle()} type="time" value={rec.actualTime || ""} onChange={(e) => setRecord(selectedDate, item.rule.id, { actualTime: e.target.value })} />
+
+                            <input
+                              style={inputStyle()}
+                              type="time"
+                              value={rec.actualTime || ""}
+                              onChange={(e) =>
+                                setRecord(selectedDate, item.rule.id, {
+                                  actualTime: e.target.value,
+                                })
+                              }
+                            />
                           </div>
                         </div>
                       </div>
@@ -942,15 +1076,22 @@ export default function App() {
               </div>
             )}
 
-            <div style={{ marginTop: 16 }}>
-              <RuleEditor onSubmit={addRule} submitLabel="항목 추가하기" />
-            </div>
+            {!isChildView ? (
+              <div style={{ marginTop: 16 }}>
+                <RuleEditor onSubmit={addRule} submitLabel="항목 추가하기" />
+              </div>
+            ) : null}
           </div>
 
           <div>
-            {editingRule ? (
+            {!isChildView && editingRule ? (
               <div style={{ marginBottom: 16 }}>
-                <RuleEditor initialRule={editingRule} onSubmit={updateRule} onCancel={() => setEditingRuleId(null)} submitLabel="수정 저장" />
+                <RuleEditor
+                  initialRule={editingRule}
+                  onSubmit={updateRule}
+                  onCancel={() => setEditingRuleId(null)}
+                  submitLabel="수정 저장"
+                />
               </div>
             ) : null}
 
@@ -969,24 +1110,28 @@ export default function App() {
                         ? `${rule.thresholds.map((t) => `${t.time} 전 ${t.score}점`).join(" / ")} / 이후 ${rule.fallbackScore}점`
                         : `${rule.dueTime}까지 ${rule.onTimeScore}점 / 지각 분당 ${rule.latePenaltyPerMinute}점`}
                     </div>
-                    <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                      <button style={buttonStyle(false)} onClick={() => setEditingRuleId(rule.id)}>수정</button>
-                      <button style={buttonStyle(false)} onClick={() => deleteRule(rule.id)}>삭제</button>
-                    </div>
+                    {!isChildView ? (
+                      <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                        <button style={buttonStyle(false)} onClick={() => setEditingRuleId(rule.id)}>수정</button>
+                        <button style={buttonStyle(false)} onClick={() => deleteRule(rule.id)}>삭제</button>
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>
             </div>
 
-            <div style={{ ...sectionStyle(), marginTop: 16 }}>
-              <h3 style={{ marginTop: 0 }}>공유 사용 순서</h3>
-              <ol style={{ paddingLeft: 18, color: "#4b5563", lineHeight: 1.7, margin: 0 }}>
-                <li>부모가 공유방 만들기</li>
-                <li>생성된 가족 코드를 아이에게 전달</li>
-                <li>아이 기기에서 같은 코드로 연결</li>
-                <li>이후 항목과 점수가 함께 저장</li>
-              </ol>
-            </div>
+            {!isChildView ? (
+              <div style={{ ...sectionStyle(), marginTop: 16 }}>
+                <h3 style={{ marginTop: 0 }}>공유 사용 순서</h3>
+                <ol style={{ paddingLeft: 18, color: "#4b5563", lineHeight: 1.7, margin: 0 }}>
+                  <li>부모가 공유방 만들기</li>
+                  <li>생성된 가족 코드를 아이에게 전달</li>
+                  <li>아이 기기에서 같은 코드로 연결</li>
+                  <li>이후 항목과 점수가 함께 저장</li>
+                </ol>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
