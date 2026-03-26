@@ -33,6 +33,10 @@ const FIREBASE_CONFIG = {
   measurementId: "G-W1QBNYQFY7"
 };
 
+const DEFAULT_ROOM_CODE = "JAEWON";
+
+const CHILD_NAME = "재원";
+
 function isFirebaseConfigured() {
   return FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY" && FIREBASE_CONFIG.projectId !== "YOUR_PROJECT_ID";
 }
@@ -538,8 +542,8 @@ export default function App() {
   const [state, setState] = useState(loadLocalState);
   const [selectedDate, setSelectedDate] = useState(todayString());
   const [editingRuleId, setEditingRuleId] = useState(null);
-  const [roomCodeInput, setRoomCodeInput] = useState(loadSavedRoomCode);
-  const [currentRoomCode, setCurrentRoomCode] = useState(loadSavedRoomCode);
+  const [roomCodeInput, setRoomCodeInput] = useState(() => DEFAULT_ROOM_CODE || loadSavedRoomCode());
+  const [currentRoomCode, setCurrentRoomCode] = useState(() => DEFAULT_ROOM_CODE || loadSavedRoomCode());
   const [role, setRole] = useState("parent");
   const [viewMode] = useState(() => {
     if (typeof window === "undefined") return "parent";
@@ -593,6 +597,11 @@ export default function App() {
     );
     return () => unsub();
   }, [currentRoomCode]);
+
+  useEffect(() => {
+    if (!DEFAULT_ROOM_CODE) return;
+    ensureDefaultRoom();
+  }, []);
 
   const daily = useMemo(() => calcDailySummary(state.rules, state.records, selectedDate), [state, selectedDate]);
   const weekly = useMemo(() => calcWeeklySummary(state.rules, state.records, selectedDate), [state, selectedDate]);
@@ -691,6 +700,36 @@ export default function App() {
     setSyncStatus("공유방 연결이 해제되었어요. 현재는 이 기기에만 저장됩니다.");
   };
 
+  const ensureDefaultRoom = async () => {
+    if (!isFirebaseConfigured() || !firestore || !DEFAULT_ROOM_CODE) return;
+
+    const code = DEFAULT_ROOM_CODE.trim().toUpperCase();
+    const ref = doc(firestore, "families", code);
+    const snapshot = await getDoc(ref);
+
+    if (!snapshot.exists()) {
+      await setDoc(
+        ref,
+        {
+          appState: state,
+          meta: {
+            roomCode: code,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            autoCreated: true,
+          },
+        },
+        { merge: true }
+      );
+      setSyncStatus(`공유방 ${code} 자동 생성 완료.`);
+    } else {
+      setSyncStatus(`공유방 ${code} 자동 연결 완료.`);
+    }
+
+    setCurrentRoomCode(code);
+    setRoomCodeInput(code);
+  };
+
   const dailyPass = daily.normalized >= state.weeklyGoal;
   const weeklyPass = weekly.normalized >= state.weeklyGoal;
 
@@ -716,7 +755,7 @@ export default function App() {
           }}
         >
           <div style={{ ...sectionStyle(), gridColumn: isMobile ? "span 1" : "span 2" }}>
-            <div style={{ fontSize: 13, color: "#6b7280" }}>가족 공유 포인트 웹앱</div>
+            {/* <div style={{ fontSize: 13, color: "#6b7280" }}>가족 공유 포인트 웹앱</div> */}
             <h1
               style={{
                 margin: "8px 0",
@@ -727,29 +766,31 @@ export default function App() {
                 letterSpacing: "-0.3px",
               }}
             >
-              {state.childName}의 데일리 / 위클리 점수판
+              {CHILD_NAME}의 데일리 / 위클리 점수판
             </h1>
 
-            {!isChildView ? (
-              <>
-                <div style={{ color: "#4b5563", fontSize: 14 }}>
+            {/* {!isChildView ? ( */}
+            <>
+              {/* <div style={{ color: "#4b5563", fontSize: 14 }}>
                   부모와 아이가 같은 가족 코드로 접속하면 점수와 항목이 함께 저장돼요.
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    marginTop: 36,
-                    flexWrap: "wrap",
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <span style={badgeStyle("default")}>{role === "parent" ? "부모 모드" : "아이 모드"}</span>
+                </div> */}
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  marginTop: 30,
+                  flexWrap: "wrap",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <span style={badgeStyle("default")}>{isChildView ? "아이 모드" : "부모 모드"}</span>
+                {!isChildView ? (
                   <button style={buttonStyle(false)} onClick={resetAll}>초기화</button>
-                </div>
-              </>
-            ) : null}
+                ) : null}
+              </div>
+            </>
+            {/* ) : null} */}
           </div>
 
           <div style={sectionStyle()}>
@@ -770,30 +811,30 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              <>
-                <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 14, marginBottom: 6 }}>아이 이름</div>
-                  <input
-                    style={inputStyle()}
-                    value={state.childName}
-                    onChange={(e) => persistState({ ...state, childName: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <div style={{ fontSize: 14, marginBottom: 6 }}>목표 점수 (100점 기준)</div>
-                  <input
-                    style={inputStyle()}
-                    type="number"
-                    value={state.weeklyGoal}
-                    onChange={(e) => persistState({ ...state, weeklyGoal: Number(e.target.value || 0) })}
-                  />
-                </div>
-              </>
+              // <>
+              //   <div style={{ marginBottom: 10 }}>
+              //     <div style={{ fontSize: 14, marginBottom: 6 }}>아이 이름</div>
+              //     <input
+              //       style={inputStyle()}
+              //       value={state.childName}
+              //       onChange={(e) => persistState({ ...state, childName: e.target.value })}
+              //     />
+              //   </div>
+              <div>
+                <div style={{ fontSize: 14, marginBottom: 6 }}>목표 점수 (100점 기준)</div>
+                <input
+                  style={inputStyle()}
+                  type="number"
+                  value={state.weeklyGoal}
+                  onChange={(e) => persistState({ ...state, weeklyGoal: Number(e.target.value || 0) })}
+                />
+              </div>
+              // </>
             )}
           </div>
         </div>
 
-        {!isChildView ? (
+        {/* {!isChildView ? (
           <div style={{ ...sectionStyle(), marginTop: 16 }}>
             <div style={{ fontWeight: 700, marginBottom: 10 }}>가족 공유</div>
             <div
@@ -831,7 +872,7 @@ export default function App() {
               </div>
             ) : null}
           </div>
-        ) : null}
+        ) : null} */}
 
         <div style={{ marginTop: 16 }}>
           <DaySelector selectedDate={selectedDate} onChange={setSelectedDate} isMobile={isMobile} />
@@ -1121,7 +1162,7 @@ export default function App() {
               </div>
             </div>
 
-            {!isChildView ? (
+            {/* {!isChildView ? (
               <div style={{ ...sectionStyle(), marginTop: 16 }}>
                 <h3 style={{ marginTop: 0 }}>공유 사용 순서</h3>
                 <ol style={{ paddingLeft: 18, color: "#4b5563", lineHeight: 1.7, margin: 0 }}>
@@ -1131,7 +1172,7 @@ export default function App() {
                   <li>이후 항목과 점수가 함께 저장</li>
                 </ol>
               </div>
-            ) : null}
+            ) : null} */}
           </div>
         </div>
       </div>
