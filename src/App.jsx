@@ -21,7 +21,6 @@ const DAY_LABELS = {
 };
 
 const STORAGE_KEY = "daily-point-webapp-v2";
-const ROOM_STORAGE_KEY = "daily-point-webapp-room";
 
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyA1wF3bM_1n7sDGOZ7JLfM4IHAkBH8yyVA",
@@ -34,20 +33,10 @@ const FIREBASE_CONFIG = {
 };
 
 const DEFAULT_ROOM_CODE = "JAEWON";
-
 const CHILD_NAME = "재원";
 
-function isFirebaseConfigured() {
-  return FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY" && FIREBASE_CONFIG.projectId !== "YOUR_PROJECT_ID";
-}
-
-let firebaseApp = null;
-let firestore = null;
-
-if (isFirebaseConfigured()) {
-  firebaseApp = initializeApp(FIREBASE_CONFIG);
-  firestore = getFirestore(firebaseApp);
-}
+let firebaseApp = initializeApp(FIREBASE_CONFIG);
+let firestore = getFirestore(firebaseApp);
 
 function pad2(n) {
   return String(n).padStart(2, "0");
@@ -175,25 +164,6 @@ function loadLocalState() {
   } catch {
     return createDefaultAppState();
   }
-}
-
-function loadSavedRoomCode() {
-  try {
-    return localStorage.getItem(ROOM_STORAGE_KEY) || "";
-  } catch {
-    return "";
-  }
-}
-
-function saveRoomCode(roomCode) {
-  try {
-    if (roomCode) localStorage.setItem(ROOM_STORAGE_KEY, roomCode);
-    else localStorage.removeItem(ROOM_STORAGE_KEY);
-  } catch { }
-}
-
-function makeRoomCode() {
-  return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
 function getRuleMaxScore(rule) {
@@ -542,9 +512,7 @@ export default function App() {
   const [state, setState] = useState(loadLocalState);
   const [selectedDate, setSelectedDate] = useState(todayString());
   const [editingRuleId, setEditingRuleId] = useState(null);
-  const [roomCodeInput, setRoomCodeInput] = useState(() => DEFAULT_ROOM_CODE || loadSavedRoomCode());
-  const [currentRoomCode, setCurrentRoomCode] = useState(() => DEFAULT_ROOM_CODE || loadSavedRoomCode());
-  const [role, setRole] = useState("parent");
+  const [currentRoomCode, setCurrentRoomCode] = useState(DEFAULT_ROOM_CODE);
   const [viewMode] = useState(() => {
     if (typeof window === "undefined") return "parent";
     return new URLSearchParams(window.location.search).get("mode") === "child"
@@ -552,9 +520,6 @@ export default function App() {
       : "parent";
   });
   const isChildView = viewMode === "child";
-  const [syncStatus, setSyncStatus] = useState(
-    isFirebaseConfigured() ? "Firebase 연결 준비됨. 가족 코드로 공유방을 만들거나 연결하세요." : "Firebase 설정값을 넣으면 가족 공유가 활성화돼요."
-  );
   const [tab, setTab] = useState("daily");
   const [viewportWidth, setViewportWidth] = useState(
     typeof window !== "undefined" ? window.innerWidth : 1200
@@ -572,34 +537,21 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    saveRoomCode(currentRoomCode);
-    if (currentRoomCode && roomCodeInput !== currentRoomCode) setRoomCodeInput(currentRoomCode);
-  }, [currentRoomCode]);
+    if (!firestore || !currentRoomCode) return;
 
-  useEffect(() => {
-    if (!isFirebaseConfigured() || !firestore || !currentRoomCode) return undefined;
     const ref = doc(firestore, "families", currentRoomCode);
-    setSyncStatus(`공유방 ${currentRoomCode} 동기화 중...`);
-    const unsub = onSnapshot(
-      ref,
-      (snapshot) => {
-        if (snapshot.exists()) {
-          const remoteData = snapshot.data()?.appState;
-          if (remoteData) {
-            setState(normalizeLoadedState(remoteData));
-            setSyncStatus(`공유방 ${currentRoomCode}에 연결됨. 부모/아이가 같은 데이터를 보고 있어요.`);
-          }
-        } else {
-          setSyncStatus(`공유방 ${currentRoomCode}가 아직 비어 있어요. 먼저 공유방을 생성하세요.`);
-        }
-      },
-      () => setSyncStatus("실시간 동기화 오류가 발생했어요. Firebase 설정을 다시 확인해 주세요.")
-    );
+    const unsub = onSnapshot(ref, (snapshot) => {
+      if (!snapshot.exists()) return;
+      const remoteData = snapshot.data()?.appState;
+      if (remoteData) {
+        setState(normalizeLoadedState(remoteData));
+      }
+    });
+
     return () => unsub();
   }, [currentRoomCode]);
 
   useEffect(() => {
-    if (!DEFAULT_ROOM_CODE) return;
     ensureDefaultRoom();
   }, []);
 
@@ -613,7 +565,7 @@ export default function App() {
     const ref = doc(firestore, "families", currentRoomCode);
     await setDoc(ref, {
       appState: nextState,
-      meta: { roomCode: currentRoomCode, roleLastUpdatedBy: role, updatedAt: serverTimestamp() },
+      meta: { roomCode: currentRoomCode, updatedAt: serverTimestamp() },
     }, { merge: true });
   };
 
@@ -648,60 +600,8 @@ export default function App() {
     setEditingRuleId(null);
   };
 
-  const createRoom = async () => {
-    if (!isFirebaseConfigured() || !firestore) {
-      setSyncStatus("먼저 Firebase 설정값을 넣어야 공유방을 만들 수 있어요.");
-      return;
-    }
-    const code = roomCodeInput.trim() || makeRoomCode();
-    const ref = doc(firestore, "families", code);
-    await setDoc(ref, {
-      appState: state,
-      meta: { roomCode: code, createdAt: serverTimestamp(), updatedAt: serverTimestamp() },
-    }, { merge: true });
-    setCurrentRoomCode(code);
-    setRoomCodeInput(code);
-    setSyncStatus(`공유방 ${code} 생성 완료. 이 코드를 가족에게 공유하세요.`);
-  };
-
-  const joinRoom = async () => {
-    if (!isFirebaseConfigured() || !firestore) {
-      setSyncStatus("먼저 Firebase 설정값을 넣어야 공유방에 연결할 수 있어요.");
-      return;
-    }
-    const code = roomCodeInput.trim();
-    if (!code) {
-      setSyncStatus("가족 코드를 입력해 주세요.");
-      return;
-    }
-    const ref = doc(firestore, "families", code);
-    const snapshot = await getDoc(ref);
-    if (!snapshot.exists()) {
-      setSyncStatus(`공유방 ${code}를 찾지 못했어요.`);
-      return;
-    }
-    setCurrentRoomCode(code);
-    setSyncStatus(`공유방 ${code} 연결 완료.`);
-  };
-
-  const copyRoom = async () => {
-    if (!currentRoomCode) return;
-    try {
-      await navigator.clipboard.writeText(currentRoomCode);
-      setSyncStatus(`가족 코드 ${currentRoomCode}를 복사했어요.`);
-    } catch {
-      setSyncStatus(`가족 코드: ${currentRoomCode}`);
-    }
-  };
-
-  const leaveRoom = () => {
-    setCurrentRoomCode("");
-    saveRoomCode("");
-    setSyncStatus("공유방 연결이 해제되었어요. 현재는 이 기기에만 저장됩니다.");
-  };
-
   const ensureDefaultRoom = async () => {
-    if (!isFirebaseConfigured() || !firestore || !DEFAULT_ROOM_CODE) return;
+    if (!firestore || !DEFAULT_ROOM_CODE) return;
 
     const code = DEFAULT_ROOM_CODE.trim().toUpperCase();
     const ref = doc(firestore, "families", code);
@@ -721,13 +621,9 @@ export default function App() {
         },
         { merge: true }
       );
-      setSyncStatus(`공유방 ${code} 자동 생성 완료.`);
-    } else {
-      setSyncStatus(`공유방 ${code} 자동 연결 완료.`);
     }
 
     setCurrentRoomCode(code);
-    setRoomCodeInput(code);
   };
 
   const dailyPass = daily.normalized >= state.weeklyGoal;
@@ -755,7 +651,6 @@ export default function App() {
           }}
         >
           <div style={{ ...sectionStyle(), gridColumn: isMobile ? "span 1" : "span 2" }}>
-            {/* <div style={{ fontSize: 13, color: "#6b7280" }}>가족 공유 포인트 웹앱</div> */}
             <h1
               style={{
                 margin: "8px 0",
@@ -769,28 +664,21 @@ export default function App() {
               {CHILD_NAME}의 데일리 / 위클리 점수판
             </h1>
 
-            {/* {!isChildView ? ( */}
-            <>
-              {/* <div style={{ color: "#4b5563", fontSize: 14 }}>
-                  부모와 아이가 같은 가족 코드로 접속하면 점수와 항목이 함께 저장돼요.
-                </div> */}
-              <div
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  marginTop: 30,
-                  flexWrap: "wrap",
-                  justifyContent: "center",
-                  alignItems: "center",
-                }}
-              >
-                <span style={badgeStyle("default")}>{isChildView ? "아이 모드" : "부모 모드"}</span>
-                {!isChildView ? (
-                  <button style={buttonStyle(false)} onClick={resetAll}>초기화</button>
-                ) : null}
-              </div>
-            </>
-            {/* ) : null} */}
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                marginTop: 30,
+                flexWrap: "wrap",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <span style={badgeStyle("default")}>{isChildView ? "아이 모드" : "부모 모드"}</span>
+              {!isChildView ? (
+                <button style={buttonStyle(false)} onClick={resetAll}>초기화</button>
+              ) : null}
+            </div>
           </div>
 
           <div style={sectionStyle()}>
@@ -811,15 +699,6 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              // <>
-              //   <div style={{ marginBottom: 10 }}>
-              //     <div style={{ fontSize: 14, marginBottom: 6 }}>아이 이름</div>
-              //     <input
-              //       style={inputStyle()}
-              //       value={state.childName}
-              //       onChange={(e) => persistState({ ...state, childName: e.target.value })}
-              //     />
-              //   </div>
               <div>
                 <div style={{ fontSize: 14, marginBottom: 6 }}>목표 점수 (100점 기준)</div>
                 <input
@@ -833,46 +712,6 @@ export default function App() {
             )}
           </div>
         </div>
-
-        {/* {!isChildView ? (
-          <div style={{ ...sectionStyle(), marginTop: 16 }}>
-            <div style={{ fontWeight: 700, marginBottom: 10 }}>가족 공유</div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(220px, 1fr))",
-                gap: 12,
-              }}
-            >
-              <div>
-                <div style={{ fontSize: 14, marginBottom: 6 }}>가족 코드</div>
-                <input style={inputStyle()} value={roomCodeInput} onChange={(e) => setRoomCodeInput(e.target.value.toUpperCase())} placeholder="예: AB12CD" />
-              </div>
-              <div>
-                <div style={{ fontSize: 14, marginBottom: 6 }}>내 역할</div>
-                <select style={inputStyle()} value={role} onChange={(e) => setRole(e.target.value)}>
-                  <option value="parent">부모</option>
-                  <option value="child">아이</option>
-                </select>
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-              <button style={buttonStyle(true)} onClick={createRoom}>공유방 만들기</button>
-              <button style={buttonStyle(false)} onClick={joinRoom}>공유방 연결</button>
-              {currentRoomCode && <button style={buttonStyle(false)} onClick={copyRoom}>코드 복사</button>}
-              {currentRoomCode && <button style={buttonStyle(false)} onClick={leaveRoom}>연결 해제</button>}
-            </div>
-            <div style={{ marginTop: 12, background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 12, padding: 12, fontSize: 14, color: "#4b5563" }}>
-              {syncStatus}
-              {currentRoomCode ? <div style={{ marginTop: 6, fontWeight: 700 }}>현재 연결 코드: {currentRoomCode}</div> : null}
-            </div>
-            {!isFirebaseConfigured() ? (
-              <div style={{ marginTop: 12, background: "#fff7ed", border: "1px solid #fdba74", borderRadius: 12, padding: 12, fontSize: 14 }}>
-                코드 상단의 FIREBASE_CONFIG 값을 실제 값으로 바꿔야 가족 공유가 동작해요.
-              </div>
-            ) : null}
-          </div>
-        ) : null} */}
 
         <div style={{ marginTop: 16 }}>
           <DaySelector selectedDate={selectedDate} onChange={setSelectedDate} isMobile={isMobile} />
@@ -1161,18 +1000,6 @@ export default function App() {
                 ))}
               </div>
             </div>
-
-            {/* {!isChildView ? (
-              <div style={{ ...sectionStyle(), marginTop: 16 }}>
-                <h3 style={{ marginTop: 0 }}>공유 사용 순서</h3>
-                <ol style={{ paddingLeft: 18, color: "#4b5563", lineHeight: 1.7, margin: 0 }}>
-                  <li>부모가 공유방 만들기</li>
-                  <li>생성된 가족 코드를 아이에게 전달</li>
-                  <li>아이 기기에서 같은 코드로 연결</li>
-                  <li>이후 항목과 점수가 함께 저장</li>
-                </ol>
-              </div>
-            ) : null} */}
           </div>
         </div>
       </div>
