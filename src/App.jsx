@@ -34,6 +34,7 @@ const FIREBASE_CONFIG = {
 
 const DEFAULT_ROOM_CODE = "JAEWON";
 const CHILD_NAME = "재원";
+const PARENT_PASSWORD = "1023";
 
 let firebaseApp = initializeApp(FIREBASE_CONFIG);
 let firestore = getFirestore(firebaseApp);
@@ -139,7 +140,6 @@ function createDefaultAppState() {
     rules: createDefaultRules(),
     records: {},
     weeklyGoal: 70,
-    childName: "우리 아이",
   };
 }
 
@@ -152,7 +152,6 @@ function normalizeLoadedState(parsed) {
     rules: rules.length > 0 ? rules : createDefaultRules(),
     records: parsed?.records || {},
     weeklyGoal: typeof parsed?.weeklyGoal === "number" ? parsed.weeklyGoal : 70,
-    childName: parsed?.childName || "우리 아이",
   };
 }
 
@@ -513,13 +512,7 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState(todayString());
   const [editingRuleId, setEditingRuleId] = useState(null);
   const [currentRoomCode, setCurrentRoomCode] = useState(DEFAULT_ROOM_CODE);
-  const [viewMode] = useState(() => {
-    if (typeof window === "undefined") return "parent";
-    return new URLSearchParams(window.location.search).get("mode") === "child"
-      ? "child"
-      : "parent";
-  });
-  const isChildView = viewMode === "child";
+  const [isParentMode, setIsParentMode] = useState(false);
   const [tab, setTab] = useState("daily");
   const [viewportWidth, setViewportWidth] = useState(
     typeof window !== "undefined" ? window.innerWidth : 1200
@@ -600,6 +593,23 @@ export default function App() {
     setEditingRuleId(null);
   };
 
+  const handleParentModeClick = () => {
+    const input = window.prompt("부모 모드 비밀번호를 입력하세요");
+
+    // 취소 누른 경우
+    if (input === null) return;
+
+    if (input === PARENT_PASSWORD) {
+      setIsParentMode(true);
+    } else {
+      window.alert("비밀번호가 틀렸어요");
+    }
+  };
+
+  const exitParentMode = () => {
+    setIsParentMode(false);
+  };
+
   const ensureDefaultRoom = async () => {
     if (!firestore || !DEFAULT_ROOM_CODE) return;
 
@@ -674,17 +684,29 @@ export default function App() {
                 alignItems: "center",
               }}
             >
-              <span style={badgeStyle("default")}>{isChildView ? "아이 모드" : "부모 모드"}</span>
-              {!isChildView ? (
-                <button style={buttonStyle(false)} onClick={resetAll}>초기화</button>
-              ) : null}
+              <span style={badgeStyle("default")}>
+                {isParentMode ? "부모 모드" : "아이 모드"}
+              </span>
+
+              {isParentMode ? (
+                <>
+                  <button style={buttonStyle(false)} onClick={resetAll}>초기화</button>
+                  <button style={buttonStyle(false)} onClick={exitParentMode}>아이 모드로</button>
+                </>
+              ) : (
+                <>
+                  <button style={buttonStyle(false)} onClick={handleParentModeClick}>
+                    부모 모드
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
           <div style={sectionStyle()}>
             <div style={{ fontWeight: 700, marginBottom: 10 }}>기본 설정</div>
 
-            {isChildView ? (
+            {!isParentMode ? (
               <div>
                 <div style={{ fontSize: 14, marginBottom: 6 }}>목표 점수 (100점 기준)</div>
                 <div
@@ -708,7 +730,6 @@ export default function App() {
                   onChange={(e) => persistState({ ...state, weeklyGoal: Number(e.target.value || 0) })}
                 />
               </div>
-              // </>
             )}
           </div>
         </div>
@@ -956,7 +977,7 @@ export default function App() {
               </div>
             )}
 
-            {!isChildView ? (
+            {isParentMode ? (
               <div style={{ marginTop: 16 }}>
                 <RuleEditor onSubmit={addRule} submitLabel="항목 추가하기" />
               </div>
@@ -964,7 +985,7 @@ export default function App() {
           </div>
 
           <div>
-            {!isChildView && editingRule ? (
+            {isParentMode && editingRule ? (
               <div style={{ marginBottom: 16 }}>
                 <RuleEditor
                   initialRule={editingRule}
@@ -990,7 +1011,7 @@ export default function App() {
                         ? `${rule.thresholds.map((t) => `${t.time} 전 ${t.score}점`).join(" / ")} / 이후 ${rule.fallbackScore}점`
                         : `${rule.dueTime}까지 ${rule.onTimeScore}점 / 지각 분당 ${rule.latePenaltyPerMinute}점`}
                     </div>
-                    {!isChildView ? (
+                    {isParentMode ? (
                       <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
                         <button style={buttonStyle(false)} onClick={() => setEditingRuleId(rule.id)}>수정</button>
                         <button style={buttonStyle(false)} onClick={() => deleteRule(rule.id)}>삭제</button>
