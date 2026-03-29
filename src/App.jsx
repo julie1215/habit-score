@@ -554,12 +554,13 @@ export default function App() {
 
   const persistState = async (nextState) => {
     setState(nextState);
-    if (!isFirebaseConfigured() || !firestore || !currentRoomCode) return;
+
+    if (!firestore || !currentRoomCode) return;
+
     const ref = doc(firestore, "families", currentRoomCode);
-    await setDoc(ref, {
-      appState: nextState,
-      meta: { roomCode: currentRoomCode, updatedAt: serverTimestamp() },
-    }, { merge: true });
+
+    // ❗ merge 유지 필수
+    await setDoc(ref, { appState: nextState }, { merge: true });
   };
 
   const setRecord = async (date, ruleId, patch) => {
@@ -617,21 +618,23 @@ export default function App() {
     const ref = doc(firestore, "families", code);
     const snapshot = await getDoc(ref);
 
-    if (!snapshot.exists()) {
-      await setDoc(
-        ref,
-        {
-          appState: state,
-          meta: {
-            roomCode: code,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            autoCreated: true,
-          },
-        },
-        { merge: true }
-      );
+    // ✅ 이미 있으면 절대 덮어쓰기 금지
+    if (snapshot.exists()) {
+      setCurrentRoomCode(code);
+      return;
     }
+
+    // 🔥 최초 1회만 생성
+    await setDoc(
+      ref,
+      {
+        appState: state,
+        meta: {
+          roomCode: code,
+          createdAt: serverTimestamp(),
+        },
+      }
+    );
 
     setCurrentRoomCode(code);
   };
