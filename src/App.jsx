@@ -518,6 +518,7 @@ export default function App() {
     typeof window !== "undefined" ? window.innerWidth : 1200
   );
   const isMobile = viewportWidth < 768;
+  const [isRoomReady, setIsRoomReady] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -539,6 +540,7 @@ export default function App() {
       if (remoteData) {
         setState(normalizeLoadedState(remoteData));
       }
+      setIsRoomReady(true);
     });
 
     return () => unsub();
@@ -554,13 +556,17 @@ export default function App() {
 
   const persistState = async (nextState) => {
     setState(nextState);
-
-    if (!firestore || !currentRoomCode) return;
+    if (!firestore || !currentRoomCode || !isRoomReady) return;
 
     const ref = doc(firestore, "families", currentRoomCode);
-
-    // ❗ merge 유지 필수
-    await setDoc(ref, { appState: nextState }, { merge: true });
+    await setDoc(
+      ref,
+      {
+        appState: nextState,
+        meta: { roomCode: currentRoomCode, updatedAt: serverTimestamp() },
+      },
+      { merge: true }
+    );
   };
 
   const setRecord = async (date, ruleId, patch) => {
@@ -589,10 +595,6 @@ export default function App() {
     await persistState({ ...state, rules: state.rules.filter((r) => r.id !== id) });
     if (editingRuleId === id) setEditingRuleId(null);
   };
-  const resetAll = async () => {
-    await persistState(createDefaultAppState());
-    setEditingRuleId(null);
-  };
 
   const handleParentModeClick = () => {
     const input = window.prompt("부모 모드 비밀번호를 입력하세요");
@@ -618,29 +620,108 @@ export default function App() {
     const ref = doc(firestore, "families", code);
     const snapshot = await getDoc(ref);
 
-    // ✅ 이미 있으면 절대 덮어쓰기 금지
     if (snapshot.exists()) {
       setCurrentRoomCode(code);
       return;
     }
 
-    // 🔥 최초 1회만 생성
-    await setDoc(
-      ref,
-      {
-        appState: state,
-        meta: {
-          roomCode: code,
-          createdAt: serverTimestamp(),
-        },
-      }
-    );
+    await setDoc(ref, {
+      appState: createDefaultAppState(),
+      meta: {
+        roomCode: code,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        autoCreated: true,
+      },
+    });
 
     setCurrentRoomCode(code);
   };
 
   const dailyPass = daily.normalized >= state.weeklyGoal;
   const weeklyPass = weekly.normalized >= state.weeklyGoal;
+
+  if (!isRoomReady) {
+    return (
+      <>
+        <style>{`
+        @keyframes spin {
+          to {
+            transform: rotate(360deg);
+          }
+        }
+
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(6px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
+
+        <div
+          style={{
+            minHeight: "100vh",
+            background: "#f8fafc",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+          }}
+        >
+          <div
+            style={{
+              background: "#ffffff",
+              border: "1px solid #e5e7eb",
+              borderRadius: 20,
+              padding: "28px 24px",
+              minWidth: 220,
+              boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 14,
+              animation: "fadeInUp 0.25s ease-out",
+            }}
+          >
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: "50%",
+                border: "4px solid #e5e7eb",
+                borderTop: "4px solid #111827",
+                animation: "spin 0.9s linear infinite",
+              }}
+            />
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 700,
+                color: "#111827",
+              }}
+            >
+              불러오는 중...
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                color: "#6b7280",
+                textAlign: "center",
+                lineHeight: 1.5,
+              }}
+            >
+              데이터를 안전하게 불러오고 있어요
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <div
@@ -693,14 +774,11 @@ export default function App() {
 
               {isParentMode ? (
                 <>
-                  <button style={buttonStyle(false)} onClick={resetAll}>초기화</button>
-                  <button style={buttonStyle(false)} onClick={exitParentMode}>아이 모드로</button>
+                  <button style={buttonStyle(false)} onClick={exitParentMode}>아이 모드</button>
                 </>
               ) : (
                 <>
-                  <button style={buttonStyle(false)} onClick={handleParentModeClick}>
-                    부모 모드
-                  </button>
+                  <button style={buttonStyle(false)} onClick={handleParentModeClick}>부모 모드</button>
                 </>
               )}
             </div>
