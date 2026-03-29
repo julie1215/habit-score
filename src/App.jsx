@@ -172,6 +172,9 @@ function getRuleMaxScore(rule) {
   if (rule.type === "lateness") {
     return rule.onTimeScore ?? 0;
   }
+  if (rule.type === "check") {
+    return rule.checkedScore ?? 0;
+  }
   return 0;
 }
 
@@ -216,6 +219,18 @@ function calcDailySummary(rules, records, dateString) {
   const items = todaysRules.map((rule) => {
     const actualTime = dayRecord[rule.id]?.actualTime || "";
     const checked = !!dayRecord[rule.id]?.checked;
+
+    if (rule.type === "check") {
+      return {
+        rule,
+        actualTime: "",
+        checked,
+        score: checked ? (rule.checkedScore ?? 0) : (rule.uncheckedScore ?? 0),
+        maxScore: getRuleMaxScore(rule),
+        detail: checked ? "달성" : "미달성",
+      };
+    }
+
     if (!checked) {
       return {
         rule,
@@ -226,6 +241,7 @@ function calcDailySummary(rules, records, dateString) {
         detail: "미체크",
       };
     }
+
     const result = scoreRule(rule, actualTime);
     return { rule, actualTime, checked, ...result };
   });
@@ -380,6 +396,8 @@ function RuleEditor({ initialRule, onSubmit, onCancel, submitLabel = "저장" })
   const [dueTime, setDueTime] = useState(initialRule?.dueTime || "16:00");
   const [onTimeScore, setOnTimeScore] = useState(initialRule?.onTimeScore ?? 1);
   const [latePenaltyPerMinute, setLatePenaltyPerMinute] = useState(initialRule?.latePenaltyPerMinute ?? -1);
+  const [checkedScore, setCheckedScore] = useState(initialRule?.checkedScore ?? 1);
+  const [uncheckedScore, setUncheckedScore] = useState(initialRule?.uncheckedScore ?? 0);
 
   useEffect(() => {
     setTitle(initialRule?.title || "");
@@ -394,6 +412,8 @@ function RuleEditor({ initialRule, onSubmit, onCancel, submitLabel = "저장" })
     setDueTime(initialRule?.dueTime || "16:00");
     setOnTimeScore(initialRule?.onTimeScore ?? 1);
     setLatePenaltyPerMinute(initialRule?.latePenaltyPerMinute ?? -1);
+    setCheckedScore(initialRule?.checkedScore ?? 1);
+    setUncheckedScore(initialRule?.uncheckedScore ?? 0);
   }, [initialRule]);
 
   const toggleDay = (day) => {
@@ -412,23 +432,41 @@ function RuleEditor({ initialRule, onSubmit, onCancel, submitLabel = "저장" })
       targetScore: initialRule?.targetScore ?? 0,
     };
 
-    const rule =
-      type === "threshold"
-        ? {
-          ...common,
-          thresholds: [
-            { id: initialRule?.thresholds?.[0]?.id || crypto.randomUUID(), time: time1, score: Number(score1), label: `${time1} 전` },
-            { id: initialRule?.thresholds?.[1]?.id || crypto.randomUUID(), time: time2, score: Number(score2), label: `${time2} 전` },
-          ],
-          fallbackScore: Number(fallbackScore),
-          fallbackLabel: `${time2} 이후`,
-        }
-        : {
-          ...common,
-          dueTime,
-          onTimeScore: Number(onTimeScore),
-          latePenaltyPerMinute: Number(latePenaltyPerMinute),
-        };
+    let rule;
+    if (type === "threshold") {
+      rule = {
+        ...common,
+        thresholds: [
+          {
+            id: initialRule?.thresholds?.[0]?.id || crypto.randomUUID(),
+            time: time1,
+            score: Number(score1),
+            label: `${time1} 전`,
+          },
+          {
+            id: initialRule?.thresholds?.[1]?.id || crypto.randomUUID(),
+            time: time2,
+            score: Number(score2),
+            label: `${time2} 전`,
+          },
+        ],
+        fallbackScore: Number(fallbackScore),
+        fallbackLabel: `${time2} 이후`,
+      };
+    } else if (type === "lateness") {
+      rule = {
+        ...common,
+        dueTime,
+        onTimeScore: Number(onTimeScore),
+        latePenaltyPerMinute: Number(latePenaltyPerMinute),
+      };
+    } else {
+      rule = {
+        ...common,
+        checkedScore: Number(checkedScore),
+        uncheckedScore: Number(uncheckedScore),
+      };
+    }
 
     onSubmit(rule);
   };
@@ -480,6 +518,7 @@ function RuleEditor({ initialRule, onSubmit, onCancel, submitLabel = "저장" })
         <select style={inputStyle()} value={type} onChange={(e) => setType(e.target.value)}>
           <option value="threshold">시간 구간 점수형</option>
           <option value="lateness">지각 분당 감점형</option>
+          <option value="check">달성 여부형</option>
         </select>
       </div>
 
@@ -491,11 +530,39 @@ function RuleEditor({ initialRule, onSubmit, onCancel, submitLabel = "저장" })
           <div><div style={{ marginBottom: 6, fontSize: 14 }}>2차 점수</div><input style={inputStyle()} type="number" value={score2} onChange={(e) => setScore2(e.target.value)} /></div>
           <div><div style={{ marginBottom: 6, fontSize: 14 }}>기준 미달 점수</div><input style={inputStyle()} type="number" value={fallbackScore} onChange={(e) => setFallbackScore(e.target.value)} /></div>
         </div>
-      ) : (
+      ) : type === "lateness" ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginTop: 14 }}>
           <div><div style={{ marginBottom: 6, fontSize: 14 }}>정시 기준 시간</div><input style={inputStyle()} type="time" value={dueTime} onChange={(e) => setDueTime(e.target.value)} /></div>
           <div><div style={{ marginBottom: 6, fontSize: 14 }}>지각 없으면 점수</div><input style={inputStyle()} type="number" value={onTimeScore} onChange={(e) => setOnTimeScore(e.target.value)} /></div>
           <div><div style={{ marginBottom: 6, fontSize: 14 }}>분당 감점</div><input style={inputStyle()} type="number" value={latePenaltyPerMinute} onChange={(e) => setLatePenaltyPerMinute(e.target.value)} /></div>
+        </div>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: 12,
+            marginTop: 14,
+          }}
+        >
+          <div>
+            <div style={{ marginBottom: 6, fontSize: 14 }}>달성 시 점수</div>
+            <input
+              style={inputStyle()}
+              type="number"
+              value={checkedScore}
+              onChange={(e) => setCheckedScore(e.target.value)}
+            />
+          </div>
+          <div>
+            <div style={{ marginBottom: 6, fontSize: 14 }}>미달성 시 점수</div>
+            <input
+              style={inputStyle()}
+              type="number"
+              value={uncheckedScore}
+              onChange={(e) => setUncheckedScore(e.target.value)}
+            />
+          </div>
         </div>
       )}
 
@@ -945,7 +1012,9 @@ export default function App() {
                             >
                               {item.rule.type === "threshold"
                                 ? "시간 구간 점수형"
-                                : `정시 ${item.rule.dueTime} / 지각 분당 감점`}
+                                : item.rule.type === "lateness"
+                                  ? `정시 ${item.rule.dueTime} / 지각 분당 감점`
+                                  : "달성 여부형"}
                             </div>
 
                             <div
@@ -987,16 +1056,18 @@ export default function App() {
                               <span>달성 체크</span>
                             </label>
 
-                            <input
-                              style={inputStyle()}
-                              type="time"
-                              value={rec.actualTime || ""}
-                              onChange={(e) =>
-                                setRecord(selectedDate, item.rule.id, {
-                                  actualTime: e.target.value,
-                                })
-                              }
-                            />
+                            {item.rule.type !== "check" ? (
+                              <input
+                                style={inputStyle()}
+                                type="time"
+                                value={rec.actualTime || ""}
+                                onChange={(e) =>
+                                  setRecord(selectedDate, item.rule.id, {
+                                    actualTime: e.target.value,
+                                  })
+                                }
+                              />
+                            ) : null}
                           </div>
                         </div>
                       </div>
@@ -1090,7 +1161,9 @@ export default function App() {
                     <div style={{ fontSize: 14, color: "#4b5563", marginTop: 8 }}>
                       {rule.type === "threshold"
                         ? `${rule.thresholds.map((t) => `${t.time} 전 ${t.score}점`).join(" / ")} / 이후 ${rule.fallbackScore}점`
-                        : `${rule.dueTime}까지 ${rule.onTimeScore}점 / 지각 분당 ${rule.latePenaltyPerMinute}점`}
+                        : rule.type === "lateness"
+                          ? `${rule.dueTime}까지 ${rule.onTimeScore}점 / 지각 분당 ${rule.latePenaltyPerMinute}점`
+                          : `달성 시 ${rule.checkedScore}점 / 미달성 시 ${rule.uncheckedScore}점`}
                     </div>
                     {isParentMode ? (
                       <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
