@@ -261,7 +261,9 @@ function calcDailySummary(rules, records, dateString) {
   const total = regularTotal + bonusTotal;
 
   const normalized =
-    maxTotal > 0 ? Math.max(0, Math.round((regularTotal / maxTotal) * 100)) : 0;
+    maxTotal > 0
+      ? Math.max(0, Math.round((total / maxTotal) * 100))
+      : 0;
 
   return { items, total, maxTotal, bonusTotal, normalized };
 }
@@ -273,10 +275,11 @@ function calcWeeklySummary(rules, records, baseDateString) {
   const total = daily.reduce((sum, d) => sum + d.total, 0);
   const maxTotal = daily.reduce((sum, d) => sum + d.maxTotal, 0);
   const bonusTotal = daily.reduce((sum, d) => sum + (d.bonusTotal || 0), 0);
-  const regularTotal = total - bonusTotal;
 
   const normalized =
-    maxTotal > 0 ? Math.max(0, Math.round((regularTotal / maxTotal) * 100)) : 0;
+    maxTotal > 0
+      ? Math.max(0, Math.round((total / maxTotal) * 100))
+      : 0;
 
   return { weekStart, days, daily, total, maxTotal, bonusTotal, normalized };
 }
