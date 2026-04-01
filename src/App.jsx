@@ -246,10 +246,22 @@ function calcDailySummary(rules, records, dateString) {
     return { rule, actualTime, checked, ...result };
   });
 
-  const total = items.reduce((sum, item) => sum + item.score, 0);
-  const maxTotal = items.reduce((sum, item) => sum + item.maxScore, 0);
-  const normalized = maxTotal > 0 ? Math.max(0, Math.round((total / maxTotal) * 100)) : 0;
-  return { items, total, maxTotal, normalized };
+  const total = items
+    .filter((item) => !item.rule.isBonus)
+    .reduce((sum, item) => sum + item.score, 0);
+
+  const maxTotal = items
+    .filter((item) => !item.rule.isBonus)
+    .reduce((sum, item) => sum + item.maxScore, 0);
+
+  const bonusTotal = items
+    .filter((item) => item.rule.isBonus)
+    .reduce((sum, item) => sum + item.score, 0);
+
+  const normalized =
+    maxTotal > 0 ? Math.max(0, Math.round((total / maxTotal) * 100)) : 0;
+
+  return { items, total, maxTotal, bonusTotal, normalized };
 }
 
 function calcWeeklySummary(rules, records, baseDateString) {
@@ -258,8 +270,12 @@ function calcWeeklySummary(rules, records, baseDateString) {
   const daily = days.map((date) => ({ date, ...calcDailySummary(rules, records, date) }));
   const total = daily.reduce((sum, d) => sum + d.total, 0);
   const maxTotal = daily.reduce((sum, d) => sum + d.maxTotal, 0);
-  const normalized = maxTotal > 0 ? Math.max(0, Math.round((total / maxTotal) * 100)) : 0;
-  return { weekStart, days, daily, total, maxTotal, normalized };
+  const bonusTotal = daily.reduce((sum, d) => sum + (d.bonusTotal || 0), 0);
+
+  const normalized =
+    maxTotal > 0 ? Math.max(0, Math.round((total / maxTotal) * 100)) : 0;
+
+  return { weekStart, days, daily, total, maxTotal, bonusTotal, normalized };
 }
 
 function sectionStyle() {
@@ -398,6 +414,7 @@ function RuleEditor({ initialRule, onSubmit, onCancel, submitLabel = "저장" })
   const [latePenaltyPerMinute, setLatePenaltyPerMinute] = useState(initialRule?.latePenaltyPerMinute ?? -1);
   const [checkedScore, setCheckedScore] = useState(initialRule?.checkedScore ?? 1);
   const [uncheckedScore, setUncheckedScore] = useState(initialRule?.uncheckedScore ?? 0);
+  const [isBonus, setIsBonus] = useState(initialRule?.isBonus || false);
 
   useEffect(() => {
     setTitle(initialRule?.title || "");
@@ -414,6 +431,7 @@ function RuleEditor({ initialRule, onSubmit, onCancel, submitLabel = "저장" })
     setLatePenaltyPerMinute(initialRule?.latePenaltyPerMinute ?? -1);
     setCheckedScore(initialRule?.checkedScore ?? 1);
     setUncheckedScore(initialRule?.uncheckedScore ?? 0);
+    setIsBonus(initialRule?.isBonus || false);
   }, [initialRule]);
 
   const toggleDay = (day) => {
@@ -430,6 +448,7 @@ function RuleEditor({ initialRule, onSubmit, onCancel, submitLabel = "저장" })
       days,
       scheduleLabel: getScheduleLabel(days),
       targetScore: initialRule?.targetScore ?? 0,
+      isBonus,
     };
 
     let rule;
@@ -520,6 +539,17 @@ function RuleEditor({ initialRule, onSubmit, onCancel, submitLabel = "저장" })
           <option value="lateness">지각 분당 감점형</option>
           <option value="check">달성 여부형</option>
         </select>
+      </div>
+
+      <div style={{ marginTop: 14 }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={isBonus}
+            onChange={(e) => setIsBonus(e.target.checked)}
+          />
+          <span>보너스 점수 항목 (총점 미포함)</span>
+        </label>
       </div>
 
       {type === "threshold" ? (
@@ -932,11 +962,12 @@ export default function App() {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(180px, 1fr))",
+                    gridTemplateColumns: isMobile ? "1fr" : "repeat(4, 1fr)",
                     gap: 12,
                   }}
                 >
                   <SummaryBox label="획득 점수" value={`${daily.total}점`} sub={`${daily.maxTotal}점 만점`} />
+                  <SummaryBox label="보너스" value={`${daily.bonusTotal || 0}점`} sub="총점 미포함" />
                   <SummaryBox label="환산 점수" value={`${daily.normalized}점`} sub="100점 기준" />
                   <SummaryBox label="판정" value={dailyPass ? "통과" : "미달"} sub={`기준 ${state.weeklyGoal}점`} />
                 </div>
@@ -1000,6 +1031,7 @@ export default function App() {
                             >
                               <span style={badgeStyle("gray")}>{item.rule.category}</span>
                               <span style={badgeStyle("default")}>{item.rule.scheduleLabel}</span>
+                              {item.rule.isBonus ? <span style={badgeStyle("success")}>보너스</span> : null}
                             </div>
 
                             <div
@@ -1092,11 +1124,12 @@ export default function App() {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(180px, 1fr))",
+                    gridTemplateColumns: isMobile ? "1fr" : "repeat(4, 1fr)",
                     gap: 12,
                   }}
                 >
                   <SummaryBox label="주간 총점" value={`${weekly.total}점`} sub={`${weekly.maxTotal}점 만점`} />
+                  <SummaryBox label="보너스" value={`${weekly.bonusTotal || 0}점`} sub="총점 미포함" />
                   <SummaryBox label="환산 점수" value={`${weekly.normalized}점`} sub="100점 기준" />
                   <SummaryBox label="판정" value={weeklyPass ? "통과" : "미달"} sub={`기준 ${state.weeklyGoal}점`} />
                 </div>
